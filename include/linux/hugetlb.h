@@ -599,6 +599,13 @@ enum hugetlb_page_flags {
 	HPG_vmemmap_optimized,
 	HPG_raw_hwp_unreliable,
 	HPG_cma,
+	/*
+	 * Folio's backing pages have been decrypted via set_memory_decrypted()
+	 * because they belong to an S_HOST_SHARED inode (MFD_HOST_SHARED memfd).
+	 * free_huge_folio() must re-encrypt the pages before returning them to
+	 * the hstate pool so unrelated allocations get private memory.
+	 */
+	HPG_host_shared,
 	__NR_HPAGEFLAGS,
 };
 
@@ -659,6 +666,7 @@ HPAGEFLAG(Freed, freed)
 HPAGEFLAG(VmemmapOptimized, vmemmap_optimized)
 HPAGEFLAG(RawHwpUnreliable, raw_hwp_unreliable)
 HPAGEFLAG(Cma, cma)
+HPAGEFLAG(HostShared, host_shared)
 
 #ifdef CONFIG_HUGETLB_PAGE
 

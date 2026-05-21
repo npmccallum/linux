@@ -339,7 +339,7 @@ long memfd_fcntl(struct file *file, unsigned int cmd, unsigned int arg)
 #define MFD_NAME_PREFIX_LEN (sizeof(MFD_NAME_PREFIX) - 1)
 #define MFD_NAME_MAX_LEN (NAME_MAX - MFD_NAME_PREFIX_LEN)
 
-#define MFD_ALL_FLAGS (MFD_CLOEXEC | MFD_ALLOW_SEALING | MFD_HUGETLB | MFD_NOEXEC_SEAL | MFD_EXEC)
+#define MFD_ALL_FLAGS (MFD_CLOEXEC | MFD_ALLOW_SEALING | MFD_HUGETLB | MFD_NOEXEC_SEAL | MFD_EXEC | MFD_HOST_SHARED)
 
 static int check_sysctl_memfd_noexec(unsigned int *flags)
 {
@@ -497,6 +497,17 @@ struct file *memfd_alloc_file(const char *name, unsigned int flags)
 		file_seals = memfd_file_seals_ptr(file);
 		if (file_seals)
 			*file_seals &= ~F_SEAL_SEAL;
+	}
+
+	if (flags & MFD_HOST_SHARED) {
+		/*
+		 * Mark the inode as backing host-visible (decrypted) memory.
+		 * The hugetlb / shmem fault path consults IS_HOST_SHARED() and
+		 * arranges for the backing pages and userspace PTEs to have
+		 * the encryption bit cleared. On a non-confidential system
+		 * the flag is recorded but has no observable effect.
+		 */
+		file_inode(file)->i_flags |= S_HOST_SHARED;
 	}
 
 	return file;

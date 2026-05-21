@@ -5,6 +5,8 @@
  */
 #include <linux/list.h>
 #include <linux/init.h>
+#include <linux/set_memory.h>
+#include <linux/cc_platform.h>
 #include <linux/mm.h>
 #include <linux/seq_file.h>
 #include <linux/highmem.h>
@@ -1713,6 +1715,23 @@ void free_huge_folio(struct folio *folio)
 	VM_BUG_ON_FOLIO(folio_ref_count(folio), folio);
 	VM_BUG_ON_FOLIO(folio_mapcount(folio), folio);
 
+	/*
+	 * MFD_HOST_SHARED: if this folio was decrypted for a host-shared
+	 * memfd, re-encrypt the backing pages before returning them to the
+	 * hstate pool or buddy allocator. Without this, the next allocation
+	 * (in this or any process) would inherit decrypted pages and silently
+	 * lose the confidential-computing protection. No-op on non-CoCo.
+	 */
+	if (folio_test_hugetlb_host_shared(folio)) {
+		unsigned long vaddr = (unsigned long)folio_address(folio);
+		unsigned int npages = folio_nr_pages(folio);
+
+		if (vaddr && set_memory_encrypted(vaddr, npages))
+			pr_warn_once("hugetlb: MFD_HOST_SHARED re-encrypt failed for folio at %lx\n",
+				     vaddr);
+		folio_clear_hugetlb_host_shared(folio);
+	}
+
 	hugetlb_set_folio_subpool(folio, NULL);
 	if (folio_test_anon(folio))
 		__ClearPageAnonExclusive(&folio->page);
@@ -3014,6 +3033,26 @@ struct folio *alloc_hugetlb_folio(struct vm_area_struct *vma,
 	if (ret == -ENOMEM) {
 		free_huge_folio(folio);
 		return ERR_PTR(-ENOMEM);
+	}
+
+	/*
+	 * MFD_HOST_SHARED hook: if this folio is being allocated for an
+	 * S_HOST_SHARED memfd (typically a vhost-user shared region inside
+	 * a confidential-computing guest), decrypt the backing pages now so
+	 * the host can read them. Mark the folio so free_huge_folio() re-
+	 * encrypts before returning to the hstate pool. On non-CoCo systems
+	 * the set_memory_decrypted() call is a no-op.
+	 */
+	if (vma->vm_file && IS_HOST_SHARED(file_inode(vma->vm_file)) &&
+	    !folio_test_hugetlb_host_shared(folio)) {
+		unsigned long vaddr = (unsigned long)folio_address(folio);
+		unsigned int npages = folio_nr_pages(folio);
+
+		if (vaddr && !set_memory_decrypted(vaddr, npages))
+			folio_set_hugetlb_host_shared(folio);
+		else
+			pr_warn_once("hugetlb: MFD_HOST_SHARED decrypt failed for folio at %lx\n",
+				     vaddr);
 	}
 
 	return folio;
@@ -4820,8 +4859,20 @@ const struct vm_operations_struct hugetlb_vm_ops = {
 static pte_t make_huge_pte(struct vm_area_struct *vma, struct folio *folio,
 		bool try_mkwrite)
 {
-	pte_t entry = folio_mk_pte(folio, vma->vm_page_prot);
-	unsigned int shift = huge_page_shift(hstate_vma(vma));
+	pgprot_t prot = vma->vm_page_prot;
+	pte_t entry;
+	unsigned int shift;
+
+	/*
+	 * MFD_HOST_SHARED: the backing folio was decrypted in
+	 * alloc_hugetlb_folio(); construct the userspace PTE with the
+	 * encryption bit cleared so the CPU treats accesses as shared.
+	 */
+	if (folio_test_hugetlb_host_shared(folio))
+		prot = pgprot_decrypted(prot);
+
+	entry = folio_mk_pte(folio, prot);
+	shift = huge_page_shift(hstate_vma(vma));
 
 	if (try_mkwrite && (vma->vm_flags & VM_WRITE)) {
 		entry = pte_mkwrite_novma(pte_mkdirty(entry));

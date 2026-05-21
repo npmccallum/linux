@@ -12,6 +12,25 @@
 #define MFD_NOEXEC_SEAL		0x0008U
 /* executable */
 #define MFD_EXEC		0x0010U
+/*
+ * Back this memfd with memory that is shared with the host hypervisor in a
+ * confidential-computing guest (SEV-SNP, TDX, ARM CCA). The kernel removes
+ * the encryption/confidentiality protection from the backing pages so that
+ * vhost-user backends and other host-side I/O paths can read and write
+ * the memfd's contents. On a non-confidential system the flag is a no-op:
+ * memfd contents are already host-readable through normal means.
+ *
+ * Pages backed by an MFD_HOST_SHARED memfd MUST be treated as adversary-
+ * controlled by the guest -- the host can read AND write them, and the
+ * confidential-computing hardware does not detect tampering of them. Only
+ * data the application explicitly intends to share (e.g. DPDK packet
+ * buffers, vhost-user descriptor rings) belongs in such a memfd.
+ *
+ * Combines with MFD_HUGETLB. When combined, the hugetlb backing pages are
+ * decrypted on allocation and re-encrypted before being returned to the
+ * hugetlb pool, so unrelated hugetlb allocations remain confidential.
+ */
+#define MFD_HOST_SHARED		0x0020U
 
 /*
  * Huge page size encoding when MFD_HUGETLB is specified, and a huge page

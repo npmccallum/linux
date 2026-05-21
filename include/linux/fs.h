@@ -2122,6 +2122,7 @@ extern loff_t vfs_dedupe_file_range_one(struct file *src_file, loff_t src_pos,
 #define S_CASEFOLD	(1 << 15) /* Casefolded file */
 #define S_VERITY	(1 << 16) /* Verity file (using fs/verity/) */
 #define S_KERNEL_FILE	(1 << 17) /* File is in use by the kernel (eg. fs/cachefiles) */
+#define S_HOST_SHARED	(1 << 18) /* backing pages are decrypted/host-visible in a confidential-computing guest (MFD_HOST_SHARED) */
 #define S_ANON_INODE	(1 << 19) /* Inode is an anonymous inode */
 
 /*
@@ -2160,6 +2161,7 @@ extern loff_t vfs_dedupe_file_range_one(struct file *src_file, loff_t src_pos,
 
 #define IS_DEADDIR(inode)	((inode)->i_flags & S_DEAD)
 #define IS_NOCMTIME(inode)	((inode)->i_flags & S_NOCMTIME)
+#define IS_HOST_SHARED(inode)	((inode)->i_flags & S_HOST_SHARED)
 
 #ifdef CONFIG_SWAP
 #define IS_SWAPFILE(inode)	((inode)->i_flags & S_SWAPFILE)
