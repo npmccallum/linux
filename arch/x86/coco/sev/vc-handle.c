@@ -595,7 +595,14 @@ static enum es_result vc_handle_mmio(struct ghcb *ghcb, struct es_em_ctxt *ctxt)
 			return ES_DECODE_FAILED;
 	}
 
-	if (user_mode(ctxt->regs))
+	/*
+	 * MOVS has source/dest in RSI/RDI which userspace can mutate between
+	 * #VC and emulation; refuse it (race deferred by commit a37cd2a59d0c).
+	 * Other MMIO insns encode their operand in the instruction itself and
+	 * are safe to emulate from user mode. Allowing them unblocks userspace
+	 * VFIO drivers (DPDK et al.) inside SEV-SNP guests.
+	 */
+	if (user_mode(ctxt->regs) && mmio == INSN_MMIO_MOVS)
 		return ES_UNSUPPORTED;
 
 	switch (mmio) {
