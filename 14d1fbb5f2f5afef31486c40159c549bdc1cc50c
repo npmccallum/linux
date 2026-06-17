@@ -1,0 +1,1 @@
+boot-clean: booted to multi-user + network reachable over SSH on 2026-06-17 (NixOS gen 65, ACPI mode). Marks commit as a safe non-bricking base; does NOT assert JetKVM HDMI fixed.
