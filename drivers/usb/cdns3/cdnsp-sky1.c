@@ -880,19 +880,6 @@ static const struct acpi_device_id cdnsp_sky1_acpi_match[] = {
 };
 MODULE_DEVICE_TABLE(acpi, cdnsp_sky1_acpi_match);
 
-static void cdnsp_sky1_shutdown(struct platform_device *pdev)
-{
-	struct device *dev = &pdev->dev;
-	struct cdnsp_sky1 *data = dev_get_drvdata(dev);
-
-	if (!device_may_wakeup(dev)) {
-		dev_dbg(dev, "at %s, reset controller\n", __func__);
-		reset_control_assert(data->reset);
-		reset_control_assert(data->preset);
-		sky1_usb_clk_disable_all(dev);
-	}
-}
-
 static struct platform_driver cdnsp_sky1_driver = {
 	.probe		= cdnsp_sky1_probe,
 	.remove		= cdnsp_sky1_remove,
@@ -902,7 +889,7 @@ static struct platform_driver cdnsp_sky1_driver = {
 		.acpi_match_table = ACPI_PTR(cdnsp_sky1_acpi_match),
 		.pm	= &cdnsp_sky1_pm_ops,
 	},
-	.shutdown = cdnsp_sky1_shutdown,
+	.shutdown	= cdnsp_sky1_remove,
 };
 
 module_platform_driver(cdnsp_sky1_driver);
